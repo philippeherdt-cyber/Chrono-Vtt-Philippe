@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Chrono VTT DIY</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2b2b2b">
+</head>
+<body>
+  <h2>Chrono VTT - Tracking Waypoints</h2>
+  <p id="status">En attente du GPS...</p>
+  <h3 id="eventMsg"></h3> <!-- <<< zone d’affichage message -->
+  <h2> msg = const cycliste </h2>
+
+  <script>
+    const cycliste = "Philippe";   // tu peux changer par nom utilisateur
+    const segment = "Segment1";
+    const apiURL = "https://script.google.com/macros/s/AKfycbxE8_uIs_cNmwa8Xze3VHtpb_UycsxaorU24Ycs3ns/dev"; // <<--- remplace par ton URL Apps Script
+
+    // ⚠️ Remplace par tes coordonnées GPS
+    const waypoints = {
+      depart: {lat: 43.2305551, lon: 3.0635999, rayon: 15},  // 15m autour du départ
+      arrivee: {lat: 43.2303, lon: 3.0642, rayon: 15}  // 15m autour de l’arrivée
+    };
+
+    function distance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI/180;
+      const φ2 = lat2 * Math.PI/180;
+      const Δφ = (lat2-lat1) * Math.PI/180;
+      const Δλ = (lon2-lon1) * Math.PI/180;
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function logEvent(type, lat, lon) {
+  let msg = "";
+  if (type === "depart") msg = "🚴 Top départ !";
+  if (type === "arrivee") msg = "🏁 Fin du segment !";
+
+  // Affichage du message sur la page
+  document.getElementById("eventMsg").innerText = msg;
+
+  // Envoi vers Google Sheets
+  fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
+    .then(r => r.text())
+    .then(txt => document.getElementById("status").innerText = txt)
+    .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
+    }
+
+    navigator.geolocation.watchPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      document.getElementById("status").innerText = `GPS: ${lat}, ${lon}`;
+
+      for (const [key, wp] of Object.entries(waypoints)) {
+        const d = distance(lat, lon, wp.lat, wp.lon);
+        if (d < wp.rayon) {
+          logEvent(key, lat, lon);
+        }
+      }
+    }, err => {
+      document.getElementById("status").innerText = "Erreur GPS: " + err.message;
+    }, {enableHighAccuracy: true});
+
+    // Service Worker pour installer la PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log("Service Worker enregistré"))
+        .catch(err => console.error("Erreur SW", err));
+    }
+  </script>
+</body>
+</html>
