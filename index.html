@@ -10,16 +10,17 @@
 <body>
   <h2>Chrono VTT - Tracking Waypoints</h2>
   <p id="status">En attente du GPS...</p>
+  <h3 id="eventMsg"></h3> <!-- <<< zone d’affichage message -->
 
   <script>
     const cycliste = "Philippe";   // tu peux changer par nom utilisateur
-    const segment = "Test1";
+    const segment = "Segment1";
     const apiURL = "https://script.google.com/macros/s/AKfycbxU3pVUVOZLlkYzK8MH1oXpNF6fMXq3Bv47QLE71rP7_Cs6W_Mkx7e7wRP__AHq6YYanA/exec"; // <<--- remplace par ton URL Apps Script
 
     // ⚠️ Remplace par tes coordonnées GPS
     const waypoints = {
-      depart: {lat: 43.230238, lon: 3.063702, rayon: 15},  // 15m autour du départ
-      arrivee: {lat: 43.230349, lon: 3.064313, rayon: 15}  // 15m autour de l’arrivée
+      depart: {lat: 43.2301, lon: 3.0630, rayon: 15},  // 15m autour du départ
+      arrivee: {lat: 43.2303, lon: 3.0642, rayon: 15}  // 15m autour de l’arrivée
     };
 
     function distance(lat1, lon1, lat2, lon2) {
@@ -36,10 +37,18 @@
     }
 
     function logEvent(type, lat, lon) {
-      fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
-        .then(r => r.text())
-        .then(txt => document.getElementById("status").innerText = txt)
-        .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
+  let msg = "";
+  if (type === "depart") msg = "🚴 Top départ !";
+  if (type === "arrivee") msg = "🏁 Fin du segment !";
+
+  // Affichage du message sur la page
+  document.getElementById("eventMsg").innerText = msg;
+
+  // Envoi vers Google Sheets
+  fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
+    .then(r => r.text())
+    .then(txt => document.getElementById("status").innerText = txt)
+    .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
     }
 
     navigator.geolocation.watchPosition(pos => {
