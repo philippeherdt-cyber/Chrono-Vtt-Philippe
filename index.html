@@ -45,13 +45,12 @@
   document.getElementById("eventMsg").innerText = msg;
 
   // Envoi vers Google Sheets
-function logEvent(type, lat, lon) {
-      fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
-        .then(r => r.text())
-        .then(txt => document.getElementById("status").innerText = txt)
-        .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
+  fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
+    .then(r => r.text())
+    .then(txt => document.getElementById("status").innerText = txt)
+    .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
     }
-      
+
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
