@@ -15,12 +15,12 @@
   <script>
     const cycliste = "Philippe";   // tu peux changer par nom utilisateur
     const segment = "Segment1";
-    const apiURL = "https://script.google.com/macros/s/AKfycbxE8_uIs_cNmwa8Xze3VHtpb_UycsxaorU24Ycs3ns/dev"; // <<--- remplace par ton URL Apps Script
+    const apiURL = "https://script.google.com/macros/s/AKfycbxU3pVUVOZLlkYzK8MH1oXpNF6fMXq3Bv47QLE71rP7_Cs6W_Mkx7e7wRP__AHq6YYanA/exec"; // <<--- remplace par ton URL Apps Script
 
     // ⚠️ Remplace par tes coordonnées GPS
     const waypoints = {
-      depart: {lat: 43.23057, lon: 3.0635583, rayon: 5},  // 5m autour du départ
-      arrivee: {lat: 43.230343402002724, lon: 3.0642916494170658, rayon: 5}  // 5m autour de l’arrivée
+      depart: {lat: 43.2305551, lon: 3.0635999, rayon: 15},  // 15m autour du départ
+      arrivee: {lat: 43.2303, lon: 3.0642, rayon: 15}  // 15m autour de l’arrivée
     };
 
     function distance(lat1, lon1, lat2, lon2) {
