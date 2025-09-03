@@ -55,42 +55,43 @@
       return R * c;
     }
 
-// objet pour mémoriser l’état de chaque segment
-let state = {}; 
-// state[segment] = "none" | "depart" | "arrivee"
+// État des segments pour anti-spam
+let state = {}; // state[segment] = "none"|"depart"|"arrivee"
 
+// Fonction d’envoi
 function logEvent(type, lat, lon) {
   if (!cycliste) {
     alert("Veuillez entrer votre nom puis cliquer sur OK avant de commencer.");
     return;
   }
 
-  // état actuel du segment
   if (!state[segment]) state[segment] = "none";
 
-  // Règles :
-  // - si on a déjà envoyé le depart, on ne le renvoie plus
+  // règles anti-spam
   if (type === "depart" && state[segment] === "depart") return;
-  // - si on a déjà envoyé l’arrivée, on ne la renvoie plus
   if (type === "arrivee" && state[segment] === "arrivee") return;
 
   // on met à jour l’état
   state[segment] = type;
 
-  // Affichage du message
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
   document.getElementById("eventMsg").innerText = msg;
 
-  console.log("Envoi:", cycliste, segment, type, lat, lon);
-
   const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
+  console.log("Envoi:", url);
+
   fetch(url)
     .then(r => r.text())
     .then(txt => {
       console.log("Réponse:", txt);
       document.getElementById("status").innerText = txt;
+
+      // Si arrivée, on réinitialise l’état pour pouvoir repartir
+      if (type === "arrivee") {
+        state[segment] = "none";
+      }
     })
     .catch(err => {
       console.error("Erreur fetch", err);
