@@ -53,9 +53,8 @@ window.onload = () => {
       return R * c;
     }
 
-    function logEvent(type, lat, lon) {
   let lastSent = "";
-function logEvent(type, lat, lon) {
+  function logEvent(type, lat, lon) {
   if (lastSent === type) return; // évite de renvoyer 10 fois
   lastSent = type;
 
