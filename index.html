@@ -62,7 +62,7 @@ window.onload = () => {
   document.getElementById("eventMsg").innerText = msg;
 
   // Envoi vers Google Sheets
-  fetch(`${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
+  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
     .then(r => r.text())
     .then(txt => document.getElementById("status").innerText = txt)
     .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
