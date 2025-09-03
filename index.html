@@ -13,7 +13,11 @@
   <h3 id="eventMsg"></h3> <!-- <<< zone d’affichage message -->
 
   <script>
-    const cycliste = "Philippe";   // tu peux changer par nom utilisateur
+   let cycliste = localStorage.getItem("cycliste");
+if (!cycliste) {
+  cycliste = prompt("Entrez votre nom de cycliste :");
+  localStorage.setItem("cycliste", cycliste);
+}
     const segment = "Segment1";
     const apiURL = "https://script.google.com/macros/s/AKfycbxE8_uIs_cNmwa8Xze3VHtpb_UycsxaorU24Ycs3ns/dev"; // <<--- remplace par ton URL Apps Script
 
