@@ -62,7 +62,7 @@ let lastSentTime = { depart: 0, arrivee: 0 };
 function logEvent(type, lat, lon) {
   const now = Date.now();
   // délai mini entre 2 envois du même type (en ms)
-  const minDelay = 15000; // 15 secondes par exemple
+  const minDelay = 30000; // 30 secondes par exemple
 
   if (now - lastSentTime[type] < minDelay) {
     // trop tôt, on ignore
