@@ -55,33 +55,37 @@
       return R * c;
     }
 
-    // un objet pour stocker la dernière fois qu'on a envoyé chaque type
-let lastSentTime = { depart: 0, arrivee: 0 };
+// objet pour mémoriser l’état de chaque segment
+let state = {}; 
+// state[segment] = "none" | "depart" | "arrivee"
 
 function logEvent(type, lat, lon) {
-  const now = Date.now();
-  // délai mini entre 2 envois du même type (en ms)
-  const minDelay = 30000; // 30 secondes par exemple
-
-  if (now - lastSentTime[type] < minDelay) {
-    // trop tôt, on ignore
-    return;
-  }
-  lastSentTime[type] = now;
-
   if (!cycliste) {
     alert("Veuillez entrer votre nom puis cliquer sur OK avant de commencer.");
     return;
   }
 
+  // état actuel du segment
+  if (!state[segment]) state[segment] = "none";
+
+  // Règles :
+  // - si on a déjà envoyé le depart, on ne le renvoie plus
+  if (type === "depart" && state[segment] === "depart") return;
+  // - si on a déjà envoyé l’arrivée, on ne la renvoie plus
+  if (type === "arrivee" && state[segment] === "arrivee") return;
+
+  // on met à jour l’état
+  state[segment] = type;
+
+  // Affichage du message
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
   document.getElementById("eventMsg").innerText = msg;
 
-  console.log("Envoi:", cycliste, type, lat, lon);
+  console.log("Envoi:", cycliste, segment, type, lat, lon);
 
-  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}`;
+  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
   fetch(url)
     .then(r => r.text())
     .then(txt => {
