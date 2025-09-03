@@ -81,7 +81,7 @@ function logEvent(type, lat, lon) {
 
   console.log("Envoi:", cycliste, type, lat, lon);
 
-  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
+  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}`;
   fetch(url)
     .then(r => r.text())
     .then(txt => {
