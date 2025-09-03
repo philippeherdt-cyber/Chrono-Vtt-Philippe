@@ -53,29 +53,19 @@ window.onload = () => {
       return R * c;
     }
 
-  let lastSent = "";
   function logEvent(type, lat, lon) {
-  if (lastSent === type) return; // évite de renvoyer 10 fois
-  lastSent = type;
-
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
+
+  // Affichage du message sur la page
   document.getElementById("eventMsg").innerText = msg;
 
-  console.log("Envoi:", cycliste, type, lat, lon);
-
-  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
-  fetch(url)
+  // Envoi vers Google Sheets
+  fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
     .then(r => r.text())
-    .then(txt => {
-      console.log("Réponse:", txt);
-      document.getElementById("status").innerText = txt;
-    })
-    .catch(err => {
-      console.error("Erreur fetch", err);
-      document.getElementById("status").innerText = "Erreur: " + err;
-    });
+    .then(txt => document.getElementById("status").innerText = txt)
+    .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
 }
 
     navigator.geolocation.watchPosition(pos => {
