@@ -55,25 +55,41 @@
       return R * c;
     }
 
-// État des segments pour anti-spam
-let state = {}; // state[segment] = "none"|"depart"|"arrivee"
+// --- NOUVELLE GESTION ANTI-SPAM ---
+// Pour chaque segment on garde deux booléens : departEnvoye / arriveeEnvoyee
+let antiSpam = {}; // antiSpam[segment] = {depart:false, arrivee:false}
 
-// Fonction d’envoi
 function logEvent(type, lat, lon) {
   if (!cycliste) {
-    alert("Veuillez entrer votre nom puis cliquer sur OK avant de commencer.");
+    alert("Veuillez entrer votre nom avant.");
     return;
   }
 
-  if (!state[segment]) state[segment] = "none";
+  // init de l'état si pas encore
+  if (!antiSpam[segment]) {
+    antiSpam[segment] = {depart:false, arrivee:false};
+  }
 
-  // règles anti-spam
-  if (type === "depart" && state[segment] === "depart") return;
-  if (type === "arrivee" && state[segment] === "arrivee") return;
+  // conditions anti-spam
+  if (type === "depart" && antiSpam[segment].depart) {
+    console.log("Départ déjà envoyé pour", segment);
+    return;
+  }
+  if (type === "arrivee" && antiSpam[segment].arrivee) {
+    console.log("Arrivée déjà envoyée pour", segment);
+    return;
+  }
 
-  // on met à jour l’état
-  state[segment] = type;
+  // Mise à jour de l’état
+  if (type === "depart") {
+    antiSpam[segment].depart = true;
+    antiSpam[segment].arrivee = false; // reset arrivée pour un nouveau tour
+  }
+  if (type === "arrivee") {
+    antiSpam[segment].arrivee = true;
+  }
 
+  // Message visuel
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
@@ -87,39 +103,28 @@ function logEvent(type, lat, lon) {
     .then(txt => {
       console.log("Réponse:", txt);
       document.getElementById("status").innerText = txt;
-
-      // Si arrivée, on réinitialise l’état pour pouvoir repartir
-      if (type === "arrivee") {
-        state[segment] = "none";
-      }
     })
     .catch(err => {
       console.error("Erreur fetch", err);
       document.getElementById("status").innerText = "Erreur: " + err;
     });
 }
-    
-    navigator.geolocation.watchPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      document.getElementById("status").innerText = `GPS: ${lat}, ${lon}`;
 
-      for (const [key, wp] of Object.entries(waypoints)) {
-        const d = distance(lat, lon, wp.lat, wp.lon);
-        if (d < wp.rayon) {
-          logEvent(key, lat, lon);
-        }
-      }
-    }, err => {
-      document.getElementById("status").innerText = "Erreur GPS: " + err.message;
-    }, {enableHighAccuracy: true});
+// GPS
+navigator.geolocation.watchPosition(pos => {
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  document.getElementById("status").innerText = `GPS: ${lat}, ${lon}`;
 
-    // Service Worker pour installer la PWA
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log("Service Worker enregistré"))
-        .catch(err => console.error("Erreur SW", err));
+  for (const [key, wp] of Object.entries(waypoints)) {
+    const d = distance(lat, lon, wp.lat, wp.lon);
+    if (d < wp.rayon) {
+      logEvent(key, lat, lon);
     }
-  </script>
+  }
+}, err => {
+  document.getElementById("status").innerText = "Erreur GPS: " + err.message;
+}, {enableHighAccuracy: true});
+</script>
 </body>
 </html>
