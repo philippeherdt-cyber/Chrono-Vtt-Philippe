@@ -22,6 +22,7 @@
   cycliste = document.getElementById("nameInput").value;
   localStorage.setItem("cycliste", cycliste);
   alert("Cycliste enregistré : " + cycliste);
+  document.getElementById("cyclisteName").innerText = "Cycliste : " + cycliste;
   }
 
   // Récupérer automatiquement si déjà stocké
