@@ -56,10 +56,24 @@
       return R * c;
     }
 
-    let lastSent = "";
+    // un objet pour stocker la dernière fois qu'on a envoyé chaque type
+let lastSentTime = { depart: 0, arrivee: 0 };
+
 function logEvent(type, lat, lon) {
-  if (lastSent === type) return; // évite de renvoyer 10 fois
-  lastSent = type;
+  const now = Date.now();
+  // délai mini entre 2 envois du même type (en ms)
+  const minDelay = 15000; // 15 secondes par exemple
+
+  if (now - lastSentTime[type] < minDelay) {
+    // trop tôt, on ignore
+    return;
+  }
+  lastSentTime[type] = now;
+
+  if (!cycliste) {
+    alert("Veuillez entrer votre nom puis cliquer sur OK avant de commencer.");
+    return;
+  }
 
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
@@ -80,7 +94,7 @@ function logEvent(type, lat, lon) {
       document.getElementById("status").innerText = "Erreur: " + err;
     });
 }
-
+    
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
