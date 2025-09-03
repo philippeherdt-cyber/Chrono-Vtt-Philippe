@@ -11,33 +11,35 @@
   <h2>Chrono VTT - Tracking Waypoints</h2>
   <p id="status">En attente du GPS...</p>
   <h3 id="eventMsg"></h3> <!-- <<< zone d’affichage message -->
+  <h2> msg = const cycliste </h2>
   Nom du cycliste : <input id="nameInput" type="text" placeholder="Votre nom">
-<button onclick="setCycliste()">OK</button>
+  <button onclick="setCycliste()">OK</button>
 
   <script>
-   let cycliste = "";
+  let cycliste = "";
 
-function setCycliste() {
+  function setCycliste() {
   cycliste = document.getElementById("nameInput").value;
   localStorage.setItem("cycliste", cycliste);
   alert("Cycliste enregistré : " + cycliste);
-}
+  }
 
-// Récupérer automatiquement si déjà stocké
-window.onload = () => {
+  // Récupérer automatiquement si déjà stocké
+  window.onload = () => {
   const stored = localStorage.getItem("cycliste");
   if (stored) {
     cycliste = stored;
     document.getElementById("nameInput").value = cycliste;
-  }
-};
+    }
+  };
+
     const segment = "Segment1";
     const apiURL = "https://script.google.com/macros/s/AKfycbxlFuOoZNuizUl0JFChEVPZ4Uu9CHfT4k9m9fsa1BxwWjwyESAq03s8Qs7FLuMv07S3hQ/exec"; // <<--- remplace par ton URL Apps Script
 
     // ⚠️ Remplace par tes coordonnées GPS
     const waypoints = {
-      depart: {lat: 43.23034179244379, lon: 3.064302871664477, rayon: 15},  // 15m autour du départ
-      arrivee: {lat: 43.236185203353514, lon: 3.0569522925810677, rayon: 15}  // 15m autour de l’arrivée
+      depart: {lat: 43.2305551, lon: 3.0635999, rayon: 15},  // 15m autour du départ
+      arrivee: {lat: 43.2303, lon: 3.0642, rayon: 15}  // 15m autour de l’arrivée
     };
 
     function distance(lat1, lon1, lat2, lon2) {
@@ -53,7 +55,7 @@ window.onload = () => {
       return R * c;
     }
 
-  function logEvent(type, lat, lon) {
+    function logEvent(type, lat, lon) {
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
@@ -62,11 +64,11 @@ window.onload = () => {
   document.getElementById("eventMsg").innerText = msg;
 
   // Envoi vers Google Sheets
-  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
+  fetch(`${apiURL}?cycliste=${cycliste}&segment=${segment}&type=${type}&lat=${lat}&lon=${lon}`)
     .then(r => r.text())
     .then(txt => document.getElementById("status").innerText = txt)
     .catch(err => document.getElementById("status").innerText = "Erreur: " + err);
-}
+    }
 
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
@@ -86,7 +88,7 @@ window.onload = () => {
     // Service Worker pour installer la PWA
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js')
-       .then(() => console.log("Service Worker enregistré"))
+        .then(() => console.log("Service Worker enregistré"))
         .catch(err => console.error("Erreur SW", err));
     }
   </script>
