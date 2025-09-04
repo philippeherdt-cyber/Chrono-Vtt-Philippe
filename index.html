@@ -4,100 +4,123 @@
   <meta charset="UTF-8">
   <title>Chrono VTT DIY</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2b2b2b">
 </head>
 <body>
   <h2>Chrono VTT - Tracking Waypoints</h2>
-  <p id="status">En attente du GPS...</p>
-  <h3 id="eventMsg"></h3> <!-- <<< zone d’affichage message -->
-  Nom du cycliste : <input id="nameInput" type="text" placeholder="Votre nom">
-  <button onclick="setCycliste()">OK</button>
 
-  <script>
-  let cycliste = "";
+  Nom du cycliste :
+  <input id="nameInput" type="text" placeholder="Votre nom">
+  <button onclick="startTracking()">OK</button>
 
-  function setCycliste() {
-  cycliste = document.getElementById("nameInput").value;
-  localStorage.setItem("cycliste", cycliste);
-  alert("Cycliste enregistré : " + cycliste);
-  document.getElementById("cyclisteName").innerText = "Cycliste : " + cycliste;
+  <p id="status">En attente du GPS…</p>
+  <h3 id="eventMsg"></h3>
+
+<script>
+let cycliste = "";
+let watchId = null;
+let wakeLock = null;
+
+// état anti-spam pour chaque segment
+let state = {}; // state[segment] = "none" | "depart" | "arrivee"
+
+const segment = "Segment1";
+const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <-- ton Apps Script
+const waypoints = {
+  depart:  {lat: 43.2305551, lon: 3.0635999, rayon: 15},
+  arrivee: {lat: 43.2303,    lon: 3.0642,    rayon: 15}
+};
+
+// lance la géolocalisation et le wakeLock
+function startTracking() {
+  cycliste = document.getElementById("nameInput").value.trim();
+  if (!cycliste) {
+    alert("Merci de saisir votre nom");
+    return;
   }
+  localStorage.setItem("cycliste", cycliste);
 
-  // Récupérer automatiquement si déjà stocké
-  window.onload = () => {
+  // initialise l’état anti-spam
+  state[segment] = "none";
+
+  // démarrage du GPS
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(onPos, onError, {enableHighAccuracy:true});
+  document.getElementById("status").innerText = "GPS démarré…";
+
+  // tenter de garder l’écran allumé (Android/Chrome)
+  requestWakeLock();
+}
+
+// récupère nom déjà stocké
+window.onload = () => {
   const stored = localStorage.getItem("cycliste");
   if (stored) {
     cycliste = stored;
     document.getElementById("nameInput").value = cycliste;
+  }
+};
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('Écran maintenu allumé');
+      wakeLock.addEventListener('release', () => {
+        console.log('WakeLock libéré');
+      });
+    } else {
+      console.log('WakeLock non supporté sur ce navigateur');
     }
-  };
+  } catch (err) {
+    console.error('WakeLock erreur:', err);
+  }
+}
 
-    const segment = "Segment1";
-    const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <<--- remplace par ton URL Apps Script
+function onPos(pos){
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  document.getElementById("status").innerText = `GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
 
-    // ⚠️ Remplace par tes coordonnées GPS
-    const waypoints = {
-      depart: {lat: 43.2303378, lon: 3.064277952, rayon: 15},  // 15m autour du départ
-      arrivee: {lat: 43.23619103, lon: 3.0569533386, rayon: 15}  // 15m autour de l’arrivée
-    };
-
-    function distance(lat1, lon1, lat2, lon2) {
-      const R = 6371e3;
-      const φ1 = lat1 * Math.PI/180;
-      const φ2 = lat2 * Math.PI/180;
-      const Δφ = (lat2-lat1) * Math.PI/180;
-      const Δλ = (lon2-lon1) * Math.PI/180;
-      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ/2) * Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
+  for (const [key, wp] of Object.entries(waypoints)) {
+    const d = distance(lat, lon, wp.lat, wp.lon);
+    if (d < wp.rayon) {
+      logEvent(key, lat, lon);
     }
+  }
+}
 
-// --- NOUVELLE GESTION ANTI-SPAM ---
-// Pour chaque segment on garde deux booléens : departEnvoye / arriveeEnvoyee
-let antiSpam = {}; // antiSpam[segment] = {depart:false, arrivee:false}
+function onError(err){
+  document.getElementById("status").innerText = "Erreur GPS: " + err.message;
+}
+
+function distance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
 
 function logEvent(type, lat, lon) {
-  if (!cycliste) {
-    alert("Veuillez entrer votre nom avant.");
-    return;
-  }
+  // Anti-spam : ne renvoyer qu’une fois chaque étape
+  if (!state[segment]) state[segment] = "none";
+  if (type === "depart" && state[segment] === "depart") return;
+  if (type === "arrivee" && state[segment] === "arrivee") return;
 
-  // init de l'état si pas encore
-  if (!antiSpam[segment]) {
-    antiSpam[segment] = {depart:false, arrivee:false};
-  }
+  state[segment] = type; // maj état
 
-  // conditions anti-spam
-  if (type === "depart" && antiSpam[segment].depart) {
-    console.log("Départ déjà envoyé pour", segment);
-    return;
-  }
-  if (type === "arrivee" && antiSpam[segment].arrivee) {
-    console.log("Arrivée déjà envoyée pour", segment);
-    return;
-  }
-
-  // Mise à jour de l’état
-  if (type === "depart") {
-    antiSpam[segment].depart = true;
-    antiSpam[segment].arrivee = false; // reset arrivée pour un nouveau tour
-  }
-  if (type === "arrivee") {
-    antiSpam[segment].arrivee = true;
-  }
-
-  // Message visuel
   let msg = "";
   if (type === "depart") msg = "🚴 Top départ !";
   if (type === "arrivee") msg = "🏁 Fin du segment !";
   document.getElementById("eventMsg").innerText = msg;
 
   const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
-  console.log("Envoi:", url);
-
   fetch(url)
     .then(r => r.text())
     .then(txt => {
@@ -109,22 +132,6 @@ function logEvent(type, lat, lon) {
       document.getElementById("status").innerText = "Erreur: " + err;
     });
 }
-
-// GPS
-navigator.geolocation.watchPosition(pos => {
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  document.getElementById("status").innerText = `GPS: ${lat}, ${lon}`;
-
-  for (const [key, wp] of Object.entries(waypoints)) {
-    const d = distance(lat, lon, wp.lat, wp.lon);
-    if (d < wp.rayon) {
-      logEvent(key, lat, lon);
-    }
-  }
-}, err => {
-  document.getElementById("status").innerText = "Erreur GPS: " + err.message;
-}, {enableHighAccuracy: true});
 </script>
 </body>
 </html>
