@@ -19,77 +19,30 @@
   <pre id="log" style="height:200px; overflow:auto; background:#f6f6f6; padding:8px;"></pre>
 
 <script>
-let cycliste = "";
-
-// anti-spam : un objet qui garde pour chaque segment s’il a déjà envoyé départ/arrivée
-const antiSpam = {};
-
-// Exemple waypoints avec 2 segments
+/* ---------- CONFIG ---------- */
+const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <<-- remplacer
+const segment = "Segment1";
 const waypoints = {
-  depart_seg1:  {lat: 43.2305551, lon: 3.0635999, rayon: 30},
-  arrivee_seg1: {lat: 43.2303,    lon: 3.0642,    rayon: 30},
-
-  depart_seg2:  {lat: 43.2310, lon: 3.0650, rayon: 30},
-  arrivee_seg2: {lat: 43.2320, lon: 3.0670, rayon: 30}
+  depart:  {lat: 43.2305551, lon: 3.0636234, rayon: 5},
+  arrivee: {lat: 43.23023,    lon: 3.0636967,    rayon: 5}
 };
+/* ---------------------------- */
 
-const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec";
+let cycliste = "";
+let watchId = null;
+let antiSpam = {}; // antiSpam[segment] = {depart:false, arrivee:false}
 
-// --------------------------
-function logEvent(key, lat, lon) {
-  // key = "depart_seg1" ou "arrivee_seg2"
-  const [type, segment] = key.split('_'); // ex: type="depart", segment="seg1"
-
-  // initialiser antiSpam si pas encore fait
-  if (!antiSpam[segment]) {
-    antiSpam[segment] = {depart:false, arrivee:false};
-  }
-
-  // si déjà envoyé on sort
-  if (antiSpam[segment][type]) {
-    console.log(`Événement ${type} déjà envoyé pour ${segment}`);
-    return;
-  }
-
-  // on bloque l’événement pour éviter le spam
-  antiSpam[segment][type] = true;
-
-  let msg = "";
-  if (type === "depart") msg = `🚴 Top départ ${segment}!`;
-  if (type === "arrivee") msg = `🏁 Fin du segment ${segment}!`;
-  document.getElementById("eventMsg").innerText = msg;
-
-  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
-
-  fetch(url)
-    .then(r => r.text())
-    .then(txt => {
-      console.log("Réponse:", txt);
-      document.getElementById("status").innerText = txt;
-    })
-    .catch(err => {
-      console.error("Erreur fetch", err);
-      document.getElementById("status").innerText = "Erreur: " + err;
-    });
+/* helper affichage */
+function log(msg){
+  console.log(msg);
+  const p = document.getElementById('log');
+  p.textContent += msg + "\n";
+  p.scrollTop = p.scrollHeight;
 }
+function setStatus(s){ document.getElementById('status').innerText = s; }
+function setEventMsg(m){ document.getElementById('eventMsg').innerText = m; }
 
-// --------------------------
-navigator.geolocation.watchPosition(pos => {
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  document.getElementById("status").innerText = `GPS: ${lat}, ${lon}`;
-
-  for (const [key, wp] of Object.entries(waypoints)) {
-    const d = distance(lat, lon, wp.lat, wp.lon);
-    if (d < wp.rayon) {
-      logEvent(key, lat, lon);
-    }
-  }
-}, err => {
-  document.getElementById("status").innerText = "Erreur GPS: " + err.message;
-}, {enableHighAccuracy: true});
-
-// --------------------------
+/* distance */
 function distance(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const φ1 = lat1 * Math.PI/180;
@@ -102,6 +55,116 @@ function distance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
+
+/* anti-spam état */
+function ensureState(){
+  if(!antiSpam[segment]) antiSpam[segment] = {depart:false, arrivee:false};
+}
+
+/* fonction d'envoi - avec encodage et checks */
+function logEvent(type, lat, lon){
+  ensureState();
+  if (type === "depart" && antiSpam[segment].depart) { log("Ignoré (depart déjà envoyé)"); return; }
+  if (type === "arrivee" && antiSpam[segment].arrivee) { log("Ignoré (arrivée déjà envoyée)"); return; }
+
+  if (!cycliste) { alert("Saisis ton nom et clique OK avant de commencer."); return; }
+
+  // Met à jour l'état
+  if (type === "depart"){ antiSpam[segment].depart = true; antiSpam[segment].arrivee = false; }
+  if (type === "arrivee"){ antiSpam[segment].arrivee = true; }
+
+  setEventMsg(type === "depart" ? "🚴 Top départ !" : "🏁 Fin du segment !");
+  const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
+  log("Fetch -> " + url);
+  fetch(url)
+    .then(r => r.text())
+    .then(txt => {
+      log("Réponse API : " + txt);
+      setStatus("API: " + txt);
+    })
+    .catch(err => {
+      log("Erreur fetch: " + err);
+      setStatus("Erreur fetch: " + err);
+    });
+}
+
+/* gestion position */
+function onPosition(pos){
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  setStatus(`GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)} (acc ${pos.coords.accuracy}m)`);
+  log(`Pos reçue: ${lat}, ${lon} (acc ${pos.coords.accuracy})`);
+  for(const [key, wp] of Object.entries(waypoints)){
+    const d = distance(lat, lon, wp.lat, wp.lon);
+    log(`Distance -> ${key}: ${Math.round(d)} m (rayon ${wp.rayon}m)`);
+    if (d < wp.rayon) {
+      log("-> zone " + key + " atteinte");
+      logEvent(key, lat, lon);
+    }
+  }
+}
+function onPosError(err){
+  log("Erreur geoloc: " + err.message + " (code " + err.code + ")");
+  setStatus("Erreur GPS: " + err.message);
+}
+
+/* démarrer tracking : on appelle d'abord getCurrentPosition pour forcer la popup de permission */
+async function startTracking(){
+  // lecture nom
+  cycliste = document.getElementById('nameInput').value.trim();
+  if(!cycliste){ alert("Merci de saisir votre nom"); return; }
+  localStorage.setItem('cycliste', cycliste);
+
+  // check geolocation support
+  if (!('geolocation' in navigator)){
+    alert("Géolocalisation non supportée par ce navigateur.");
+    return;
+  }
+
+  // Tester le contexte sécurisé
+  if (location.protocol !== "https:" && location.hostname !== "localhost") {
+    log("ATTENTION: la géolocalisation exige HTTPS. Si tu n'es pas en https la demande sera bloquée.");
+  }
+
+  setStatus("Demande permission géoloc...");
+  log("Demande getCurrentPosition pour forcer la popup permission...");
+  navigator.geolocation.getCurrentPosition(function(pos){
+    log("Permission accordée - position initiale reçue.");
+    // démarrer watchPosition
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(onPosition, onPosError, {enableHighAccuracy:true, maximumAge:1000, timeout:10000});
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    setStatus("Tracking démarré.");
+  }, function(err){
+    log("Permission refusée ou erreur initiale: " + err.message);
+    setStatus("Permission refusée / erreur: " + err.message);
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+}
+
+/* arrêter */
+function stopTracking(){
+  if (watchId !== null){
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    setStatus("Tracking arrêté.");
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  }
+}
+
+/* init UI */
+document.getElementById('startBtn').addEventListener('click', startTracking);
+document.getElementById('stopBtn').addEventListener('click', stopTracking);
+
+/* récupérer nom stocké */
+window.addEventListener('load', ()=>{
+  const stored = localStorage.getItem('cycliste');
+  if(stored) document.getElementById('nameInput').value = stored;
+  log("Page chargée - prêt.");
+});
+
+/* NOTE: si tu as un service worker pendant le dev, commente son enregistrement pour déboguer */
 </script>
 </body>
 </html>
