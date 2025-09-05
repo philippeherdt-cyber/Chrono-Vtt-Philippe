@@ -1,106 +1,48 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Chrono VTT DIY</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#2b2b2b">
+  <meta charset="utf-8" />
+  <title>Chrono VTT - Debug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-  <h2>Chrono VTT - Tracking Waypoints</h2>
+  <h2>Chrono VTT - Test</h2>
 
   Nom du cycliste :
-  <input id="nameInput" type="text" placeholder="Votre nom">
-  <button onclick="startTracking()">OK</button>
+  <input id="nameInput" type="text" placeholder="Votre nom" />
+  <button id="startBtn">OK - Démarrer</button>
+  <button id="stopBtn" disabled>Arrêter</button>
 
-  <p id="status">En attente du GPS…</p>
+  <p id="status">En attente...</p>
   <h3 id="eventMsg"></h3>
 
+  <pre id="log" style="height:200px; overflow:auto; background:#f6f6f6; padding:8px;"></pre>
+
 <script>
+/* ---------- CONFIG ---------- */
+const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <<-- remplacer
+const segment = "Segment1";
+const waypoints = {
+  depart:  {lat: 43.2305551, lon: 3.0635999, rayon: 30},
+  arrivee: {lat: 43.2303,    lon: 3.0642,    rayon: 30}
+};
+/* ---------------------------- */
+
 let cycliste = "";
 let watchId = null;
-let wakeLock = null;
+let antiSpam = {}; // antiSpam[segment] = {depart:false, arrivee:false}
 
-// état anti-spam pour chaque segment
-let state = {}; // state[segment] = "none" | "depart" | "arrivee"
-
-const segment = "Segment1";
-const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <-- ton Apps Script
-const waypoints = {
-  depart:  {lat: 43.2305551, lon: 3.0635999, rayon: 15},
-  arrivee: {lat: 43.2303,    lon: 3.0642,    rayon: 15}
-};
-
-const segment = "Segment2";
-const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <-- ton Apps Script
-const waypoints = {
-  depart:  {lat: 43.230147260, lon: 3.0645757529, rayon: 15},
-  arrivee: {lat: 43.2249425,    lon: 3.0703688,    rayon: 15}
-};
-
-// lance la géolocalisation et le wakeLock
-function startTracking() {
-  cycliste = document.getElementById("nameInput").value.trim();
-  if (!cycliste) {
-    alert("Merci de saisir votre nom");
-    return;
-  }
-  localStorage.setItem("cycliste", cycliste);
-
-  // initialise l’état anti-spam
-  state[segment] = "none";
-
-  // démarrage du GPS
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId = navigator.geolocation.watchPosition(onPos, onError, {enableHighAccuracy:true});
-  document.getElementById("status").innerText = "GPS démarré…";
-
-  // tenter de garder l’écran allumé (Android/Chrome)
-  requestWakeLock();
+/* helper affichage */
+function log(msg){
+  console.log(msg);
+  const p = document.getElementById('log');
+  p.textContent += msg + "\n";
+  p.scrollTop = p.scrollHeight;
 }
+function setStatus(s){ document.getElementById('status').innerText = s; }
+function setEventMsg(m){ document.getElementById('eventMsg').innerText = m; }
 
-// récupère nom déjà stocké
-window.onload = () => {
-  const stored = localStorage.getItem("cycliste");
-  if (stored) {
-    cycliste = stored;
-    document.getElementById("nameInput").value = cycliste;
-  }
-};
-
-async function requestWakeLock() {
-  try {
-    if ('wakeLock' in navigator) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      console.log('Écran maintenu allumé');
-      wakeLock.addEventListener('release', () => {
-        console.log('WakeLock libéré');
-      });
-    } else {
-      console.log('WakeLock non supporté sur ce navigateur');
-    }
-  } catch (err) {
-    console.error('WakeLock erreur:', err);
-  }
-}
-
-function onPos(pos){
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  document.getElementById("status").innerText = `GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-
-  for (const [key, wp] of Object.entries(waypoints)) {
-    const d = distance(lat, lon, wp.lat, wp.lon);
-    if (d < wp.rayon) {
-      logEvent(key, lat, lon);
-    }
-  }
-}
-
-function onError(err){
-  document.getElementById("status").innerText = "Erreur GPS: " + err.message;
-}
-
+/* distance */
 function distance(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const φ1 = lat1 * Math.PI/180;
@@ -114,31 +56,115 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-function logEvent(type, lat, lon) {
-  // Anti-spam : ne renvoyer qu’une fois chaque étape
-  if (!state[segment]) state[segment] = "none";
-  if (type === "depart" && state[segment] === "depart") return;
-  if (type === "arrivee" && state[segment] === "arrivee") return;
+/* anti-spam état */
+function ensureState(){
+  if(!antiSpam[segment]) antiSpam[segment] = {depart:false, arrivee:false};
+}
 
-  state[segment] = type; // maj état
+/* fonction d'envoi - avec encodage et checks */
+function logEvent(type, lat, lon){
+  ensureState();
+  if (type === "depart" && antiSpam[segment].depart) { log("Ignoré (depart déjà envoyé)"); return; }
+  if (type === "arrivee" && antiSpam[segment].arrivee) { log("Ignoré (arrivée déjà envoyée)"); return; }
 
-  let msg = "";
-  if (type === "depart") msg = "🚴 Top départ !";
-  if (type === "arrivee") msg = "🏁 Fin du segment !";
-  document.getElementById("eventMsg").innerText = msg;
+  if (!cycliste) { alert("Saisis ton nom et clique OK avant de commencer."); return; }
 
+  // Met à jour l'état
+  if (type === "depart"){ antiSpam[segment].depart = true; antiSpam[segment].arrivee = false; }
+  if (type === "arrivee"){ antiSpam[segment].arrivee = true; }
+
+  setEventMsg(type === "depart" ? "🚴 Top départ !" : "🏁 Fin du segment !");
   const url = `${apiURL}?cycliste=${encodeURIComponent(cycliste)}&segment=${encodeURIComponent(segment)}&type=${encodeURIComponent(type)}&lat=${lat}&lon=${lon}`;
+  log("Fetch -> " + url);
   fetch(url)
     .then(r => r.text())
     .then(txt => {
-      console.log("Réponse:", txt);
-      document.getElementById("status").innerText = txt;
+      log("Réponse API : " + txt);
+      setStatus("API: " + txt);
     })
     .catch(err => {
-      console.error("Erreur fetch", err);
-      document.getElementById("status").innerText = "Erreur: " + err;
+      log("Erreur fetch: " + err);
+      setStatus("Erreur fetch: " + err);
     });
 }
+
+/* gestion position */
+function onPosition(pos){
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  setStatus(`GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)} (acc ${pos.coords.accuracy}m)`);
+  log(`Pos reçue: ${lat}, ${lon} (acc ${pos.coords.accuracy})`);
+  for(const [key, wp] of Object.entries(waypoints)){
+    const d = distance(lat, lon, wp.lat, wp.lon);
+    log(`Distance -> ${key}: ${Math.round(d)} m (rayon ${wp.rayon}m)`);
+    if (d < wp.rayon) {
+      log("-> zone " + key + " atteinte");
+      logEvent(key, lat, lon);
+    }
+  }
+}
+function onPosError(err){
+  log("Erreur geoloc: " + err.message + " (code " + err.code + ")");
+  setStatus("Erreur GPS: " + err.message);
+}
+
+/* démarrer tracking : on appelle d'abord getCurrentPosition pour forcer la popup de permission */
+async function startTracking(){
+  // lecture nom
+  cycliste = document.getElementById('nameInput').value.trim();
+  if(!cycliste){ alert("Merci de saisir votre nom"); return; }
+  localStorage.setItem('cycliste', cycliste);
+
+  // check geolocation support
+  if (!('geolocation' in navigator)){
+    alert("Géolocalisation non supportée par ce navigateur.");
+    return;
+  }
+
+  // Tester le contexte sécurisé
+  if (location.protocol !== "https:" && location.hostname !== "localhost") {
+    log("ATTENTION: la géolocalisation exige HTTPS. Si tu n'es pas en https la demande sera bloquée.");
+  }
+
+  setStatus("Demande permission géoloc...");
+  log("Demande getCurrentPosition pour forcer la popup permission...");
+  navigator.geolocation.getCurrentPosition(function(pos){
+    log("Permission accordée - position initiale reçue.");
+    // démarrer watchPosition
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(onPosition, onPosError, {enableHighAccuracy:true, maximumAge:1000, timeout:10000});
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    setStatus("Tracking démarré.");
+  }, function(err){
+    log("Permission refusée ou erreur initiale: " + err.message);
+    setStatus("Permission refusée / erreur: " + err.message);
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+}
+
+/* arrêter */
+function stopTracking(){
+  if (watchId !== null){
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    setStatus("Tracking arrêté.");
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  }
+}
+
+/* init UI */
+document.getElementById('startBtn').addEventListener('click', startTracking);
+document.getElementById('stopBtn').addEventListener('click', stopTracking);
+
+/* récupérer nom stocké */
+window.addEventListener('load', ()=>{
+  const stored = localStorage.getItem('cycliste');
+  if(stored) document.getElementById('nameInput').value = stored;
+  log("Page chargée - prêt.");
+});
+
+/* NOTE: si tu as un service worker pendant le dev, commente son enregistrement pour déboguer */
 </script>
 </body>
 </html>
