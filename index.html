@@ -31,6 +31,13 @@ const waypoints = {
   arrivee: {lat: 43.2303,    lon: 3.0642,    rayon: 15}
 };
 
+const segment = "Segment2";
+const apiURL = "https://script.google.com/macros/s/AKfycbw9ApgkgmkJqEGgFuBGd7iRDy8ARfm3lLS8BXQH4QsLFW_dRjpUNZRxlY1_EdCGCGHptA/exec"; // <-- ton Apps Script
+const waypoints = {
+  depart:  {lat: 43.230147260, lon: 3.0645757529, rayon: 15},
+  arrivee: {lat: 43.2249425,    lon: 3.0703688,    rayon: 15}
+};
+
 // lance la géolocalisation et le wakeLock
 function startTracking() {
   cycliste = document.getElementById("nameInput").value.trim();
